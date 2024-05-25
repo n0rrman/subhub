@@ -1,0 +1,55 @@
+version: '3.0' 
+
+services:
+  sub:
+    image: modfin/websub-client:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - HOSTNAME=sub
+      - PORT=8080
+      - HUB_URL=http://hub
+      - TOPIC=advice
+    networks:
+      - virtual-www
+
+  hub:
+    image: henriknorrman/hub
+    build: .
+    ports:
+      - "80:80"
+    networks:
+      - hub
+      - virtual-www
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: postgres:14.3
+    networks: 
+      - hub
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=hub
+      - POSTGRES_PORT=5432
+    volumes:
+      - subscriber_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pg_isready -U postgres -d hub'"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+
+
+volumes:
+  subscriber_data:
+
+networks:
+  hub:
+    external:
+      false
+  virtual-www:
+    external:
+      false
