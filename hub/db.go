@@ -20,7 +20,6 @@ type hubStore struct {
 // Connects to the Postgres server, and adds the subscription table.
 // Prints error and exits with error code 1 on failure.
 func (h *hubStore) init() {
-
 	// Connect to the postgres server
 	fmt.Println("Connecting to database...")
 	pgURL := "postgres://postgres:password@database:5432/hub"
@@ -55,7 +54,6 @@ func (h *hubStore) init() {
 //
 // "MUST allow subscribers to re-request already active subscriptions."
 func (h *hubStore) addSubscriber(callback string, secret string, topic string, timestamp int64) {
-
 	// Query to add new subscriber. Ignores old/delayed subscriptions and updates timestamp on resubscriptions.
 	_, err := h.store.Exec(context.Background(), `
 		INSERT INTO subscription
@@ -86,7 +84,6 @@ func (h *hubStore) addSubscriber(callback string, secret string, topic string, t
 // Remove a subscription to a specific topic. A user with multiple
 // subscriptions keep their other topic subscriptions.
 func (h *hubStore) removeSubscriber(callback string, topic string) {
-
 	// Query to remove a subscription
 	_, err := h.store.Exec(context.Background(), `
 		DELETE FROM subscription
@@ -103,7 +100,6 @@ func (h *hubStore) removeSubscriber(callback string, topic string) {
 //
 // Return all topic subscriptions in the database
 func (h *hubStore) getAllSubsByTopic(topic string) []subscription {
-
 	// Query to fetch all subscriptions
 	rows, err := h.store.Query(context.Background(), `
 		SELECT subscriber, secret, topic 

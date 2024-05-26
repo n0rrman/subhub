@@ -37,7 +37,22 @@ type subscription struct {
 //
 // Returns 404 Not found and a simple Not Found HTML page
 func (*hub) invalidRoute(ctx echo.Context) error {
-	return ctx.HTML(http.StatusNotFound, `<div style="padding: 0.25rem;">Invalid path! Send a <code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem">POST</code> request to <code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem;">/</code> to subscribe to the hub, or a <code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem">GET</code> request to <code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem;">/publish</code> to broadcast a friendly advice to every subscriber.</div>`)
+	return ctx.HTML(http.StatusNotFound, `
+		<div style="padding: 0.25rem;">
+			Invalid path! Send a 
+			<code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem">POST</code> 
+			request to 
+			<code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem;">/</code> 
+			with the header parameter 
+			<code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem">hub.topic</code> 
+			set to 
+			<code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem">advice</code> 
+			to subscribe to the hub, or a 
+			<code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem">GET</code> 
+			request to 
+			<code style="background-color: rgb(226 232 240); border-radius: 0.125rem; padding: 0.2rem;">/publish</code> 
+			to broadcast a friendly advice to every subscriber.
+		</div>`)
 }
 
 // Serves new subscription requests
@@ -103,7 +118,6 @@ func sendGET(callback string, mode string, topic string, challenge string) ([]by
 // Adds subscription to the hubStore if verification is successful.
 // Returns early if verification fails.
 func (h *hub) verifyIntent(callback string, secret string, mode string, topic string, timestamp int64) {
-
 	// Generate new challenge
 	c := generateChallenge()
 
@@ -128,7 +142,6 @@ func (h *hub) verifyIntent(callback string, secret string, mode string, topic st
 		h.store.addSubscriber(callback, secret, topic, timestamp)
 		fmt.Println(callback, "(re)subscribde to", topic)
 	}
-
 }
 
 // A dummy publisher for testing/demo purpose
@@ -143,26 +156,16 @@ func (h *hub) dummyPublisher(ctx echo.Context) error {
 	// Fetch friendly advice
 	advice := getRandomAdvice()
 
-	// Create channel for subscription broadcasting
-	sc := make(chan subscription)
+	// Send content to subscribers in separate goroutines
 	for _, s := range subscribers {
-		go sendContent(s.subscriber, s.secret, s.topic, advice, sc)
-	}
-
-	// Unsubscribe from subscriptions passed back through the channel
-	i := 0
-	for remove := range sc {
-		go func(unsub subscription) {
-			if unsub.subscriber != "" {
-				h.store.removeSubscriber(unsub.subscriber, unsub.topic)
-				fmt.Println(unsub.subscriber, "unsubscribed from", unsub.topic)
+		go func(sub subscription, a string) {
+			success := sendContent(sub.subscriber, sub.secret, sub.topic, a)
+			// If not succesful -> remove subscriber
+			if !success {
+				h.store.removeSubscriber(sub.subscriber, sub.topic)
 			}
-		}(remove)
-		// Close channel when all subscriptions are processed
-		if i >= (len(subscribers) - 1) {
-			close(sc)
-		}
-		i++
+		}(s, advice)
+
 	}
 
 	return ctx.String(http.StatusOK, "\""+advice+"\" was sent to all subscribers of the topic \"advice\".")
@@ -171,9 +174,9 @@ func (h *hub) dummyPublisher(ctx echo.Context) error {
 // Send published content to subscribers
 //
 // Packs content in JSON and generates HMAC signature for header.
-// Sends content in a POST request to callback URL. Returns nothing, but sends failed
-// requests through the channel
-func sendContent(url string, secret string, topic string, content string, sc chan subscription) {
+// Sends content in a POST request to callback URL.
+// Returns true if successful, otherwise false.
+func sendContent(url string, secret string, topic string, content string) bool {
 	// Convert content to []byte for hashing and JSON convertions
 	jsonBody := []byte("{\"topic\":\"" + topic + "\", \"content\":\"" + content + "\"}")
 
@@ -191,14 +194,12 @@ func sendContent(url string, secret string, topic string, content string, sc cha
 
 	// Open client and send POST request
 	client := &http.Client{}
-	resp, _ := client.Do(req)
-
-	// Send failed attempts back through channel for unsubscription
-	if resp.StatusCode != 200 {
-		sc <- subscription{url, secret, topic}
-	} else {
-		sc <- subscription{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
 	}
-
 	defer resp.Body.Close()
+
+	// Returns true of succesful, otherwise false
+	return resp.StatusCode == 200
 }
