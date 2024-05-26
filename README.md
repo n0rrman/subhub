@@ -19,6 +19,7 @@ Subhub is a small WebSub hub demo implemented in Go using echo, http/net, and Po
 ### Endpoints
 
 `POST /`: Reads header for required parameters and handle subscription requests. 
+
 `GET /publish`: Acts as the publisher for testing, broadcasts content to subscribers.
 
 ### Files
@@ -62,10 +63,30 @@ The diagram shows a successful `/publish` call. The `dummyPublisher()` fetches a
   
 #### Run demo
 
-The local demo uses `modfin/websub-client:latest` as a subscriber and runs entirely in Docker containers. To run the demo:
+The local demo uses `modfin/websub-client:latest` as a Subscriber and runs entirely in Docker containers. To run the demo:
+
 ```
 docker compose up --build
 ```
+
+The Subscriber will automatically subscribe to the Hub. To resubscribe send a GET request to (or open in a browser):
+
+```
+http://localhost:8080/resub
+```
+
+To distribute content from the Hub to the Subscribers.
+
+```
+http://localhost/publish
+```
+
+To view the successfully recieved content on the Subscriber:
+
+```
+http://localhost:8080/log
+```
+
 
 #### Live version
 A live version of the hub (without the subscriber container) is running on https://subhub.henriknorrman.com.
