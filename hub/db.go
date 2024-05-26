@@ -12,7 +12,7 @@ import (
 //
 // Holds a pointer to the postgres connection pool
 type hubStore struct {
-	store *pgxpool.Pool
+	db *pgxpool.Pool
 }
 
 // Initiate the database instance
@@ -24,15 +24,15 @@ func (h *hubStore) init() {
 	fmt.Println("Connecting to database...")
 	pgURL := "postgres://postgres:password@database:5432/hub"
 	var err error
-	h.store, err = pgxpool.Connect(context.Background(), pgURL)
+	h.db, err = pgxpool.Connect(context.Background(), pgURL)
 	if err != nil {
-		h.store.Close()
+		h.db.Close()
 		fmt.Println(err)
 		os.Exit(1)
 	}
 
 	// Query to create subscription table
-	_, err = h.store.Exec(context.Background(), `
+	_, err = h.db.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS subscription (
 			id SERIAL PRIMARY KEY,
 			subscriber VARCHAR(128) NOT NULL,
@@ -42,7 +42,7 @@ func (h *hubStore) init() {
 			UNIQUE (subscriber, topic)
 		)`)
 	if err != nil {
-		h.store.Close()
+		h.db.Close()
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -55,7 +55,7 @@ func (h *hubStore) init() {
 // "MUST allow subscribers to re-request already active subscriptions."
 func (h *hubStore) addSubscriber(callback string, secret string, topic string, timestamp int64) {
 	// Query to add new subscriber. Ignores old/delayed subscriptions and updates timestamp on resubscriptions.
-	_, err := h.store.Exec(context.Background(), `
+	_, err := h.db.Exec(context.Background(), `
 		INSERT INTO subscription
 			(subscriber, secret, topic, timestamp) 
 		VALUES 
@@ -73,7 +73,7 @@ func (h *hubStore) addSubscriber(callback string, secret string, topic string, t
 		END;
 	`, callback, secret, topic, timestamp)
 	if err != nil {
-		h.store.Close()
+		h.db.Close()
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -85,12 +85,12 @@ func (h *hubStore) addSubscriber(callback string, secret string, topic string, t
 // subscriptions keep their other topic subscriptions.
 func (h *hubStore) removeSubscriber(callback string, topic string) {
 	// Query to remove a subscription
-	_, err := h.store.Exec(context.Background(), `
+	_, err := h.db.Exec(context.Background(), `
 		DELETE FROM subscription
 		WHERE subscriber=$1 AND topic=$2
 	`, callback, topic)
 	if err != nil {
-		h.store.Close()
+		h.db.Close()
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -101,13 +101,13 @@ func (h *hubStore) removeSubscriber(callback string, topic string) {
 // Return all topic subscriptions in the database
 func (h *hubStore) getAllSubsByTopic(topic string) []subscription {
 	// Query to fetch all subscriptions
-	rows, err := h.store.Query(context.Background(), `
+	rows, err := h.db.Query(context.Background(), `
 		SELECT subscriber, secret, topic 
 		FROM subscription 
 		WHERE topic=$1
 	`, topic)
 	if err != nil {
-		h.store.Close()
+		h.db.Close()
 		fmt.Println(err)
 		os.Exit(1)
 	}
