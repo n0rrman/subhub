@@ -36,8 +36,6 @@ Subhub is a small WebSub hub demo implemented in Go using echo, http/net, and Po
 **db.go** holds all Postgres logic: connecting to the database, creating tables, and making queries. All SQL and database code is contained within this file. 
 
 
-**utils.go** contains a few general utility functions, such as random hex string generator, sha256 hasher, and random advice fetcher.
-
 ### Flow
 The following diagrams shows the main action flow through the hub, from client to database. The three columns represent the different code files and how they interract.
 
